@@ -1,6 +1,5 @@
 from json import loads, dumps
 from collections import OrderedDict
-from elasticsearch import Elasticsearch, helpers
 from datetime import datetime
 from traceback import print_exc
 
@@ -177,55 +176,6 @@ class ParseZeekLogs(object):
                 if self.filtered_fields is None or v in self.filtered_fields:
                     field_names.append(v)
         return field_names
-
-    @staticmethod
-    def bulk_to_elasticsearch(es, bulk_queue):
-        try:
-            helpers.bulk(es, bulk_queue)
-            return True
-        except:
-            print(print_exc())
-            return False
-
-    @staticmethod
-    def batch_to_elk(filepath=None, batch_size=500, fields=None, elk_ip="127.0.0.1", index="zeeklogs", meta={},
-                     ignore_keys=[]):
-        # Create handle to ELK
-        es = Elasticsearch([elk_ip])
-
-        # Create a handle to the log data
-        dataHandle = ParseZeekLogs(filepath, fields=fields, output_format="json", meta=meta)
-
-        # Begin to process and output data
-        dataBatch = []
-        for record in dataHandle:
-            try:
-                record = loads(record)
-
-                if isinstance(record, dict):
-                    record["_index"] = index
-                    record["_type"] = index
-                    try:
-                        record['timestamp'] = datetime.utcfromtimestamp(float(record['ts'])).isoformat()
-                    except:
-                        pass
-
-                    dataBatch.append(record)
-
-                    if len(dataBatch) >= batch_size:
-                        # Batch the queue to ELK
-                        # print("Batching to elk: " + str(len(dataBatch)))
-                        dataHandle.bulk_to_elasticsearch(es, dataBatch)
-                        # Clear the data queue
-                        dataBatch = []
-            except:
-                pass
-
-        # Batch the final data to ELK
-        # print("Batching final data to elk: " + str(len(dataBatch)))
-        dataHandle.bulk_to_elasticsearch(es, dataBatch)
-        # Clear the data queue
-        dataBatch = []
 
     def __str__(self):
         return dumps(self.data)
